@@ -18,10 +18,10 @@ jobs:
         with:
           node-version: 18
 
-      - name: Limpar travas do Windows e instalar dependências
+      - name: Limpar módulos do Windows e instalar dependências limpas
         run: |
           cd bankseg.orig
-          rm -f package-lock.json
+          rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
 
       - name: Instalar Capacitor e dependências Android
