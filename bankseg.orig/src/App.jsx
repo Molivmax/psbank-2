@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Geolocation } from '@capacitor/geolocation';
 import Register from './components/Register';
 import Login from './components/Login';
 import BankAppsFolder from './components/BankAppsFolder';
@@ -9,8 +10,19 @@ function App() {
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [userData, setUserData] = useState(null);
 
-  // Webhook de produção do n8n
   const N8N_WEBHOOK_URL = 'https://jh23268419.app.n8n.cloud/webhook/banco-seguro-alerta';
+
+  // Solicita permissão nativa de GPS na primeira utilização ou cadastro
+  const solicitarPermissaoGPS = async () => {
+    try {
+      const status = await Geolocation.checkPermissions();
+      if (status.location !== 'granted') {
+        await Geolocation.requestPermissions();
+      }
+    } catch (err) {
+      console.warn('Ambiente web ou permissão não suportada de imediato:', err);
+    }
+  };
 
   useEffect(() => {
     const storedUser = localStorage.getItem('pastaSeguraUser');
@@ -20,9 +32,32 @@ function App() {
     } else {
       setCurrentView('register');
     }
+    solicitarPermissaoGPS();
+  }, []);
+
+  // Bloqueio automático imediato ao ir para segundo plano (ao minimizar ou abrir um banco)
+  useEffect(() => {
+    const handleLockOnBackground = () => {
+      if (document.hidden) {
+        setIsEmergencyMode(false);
+        const storedUser = localStorage.getItem('pastaSeguraUser');
+        if (storedUser) {
+          setCurrentView('login');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleLockOnBackground);
+    window.addEventListener('blur', handleLockOnBackground);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleLockOnBackground);
+      window.removeEventListener('blur', handleLockOnBackground);
+    };
   }, []);
 
   const handleRegisterSuccess = () => {
+    solicitarPermissaoGPS();
     const storedUser = localStorage.getItem('pastaSeguraUser');
     if (storedUser) {
       setUserData(JSON.parse(storedUser));
@@ -30,37 +65,29 @@ function App() {
     }
   };
 
-  const handleLoginSuccess = (loginType) => {
-    if (loginType === 'emergency') {
-      setIsEmergencyMode(true);
-    }
-    setCurrentView('folder');
-  };
-
   const enviarAlertaParaN8N = async (localizacao) => {
     try {
+      const currentUser = JSON.parse(localStorage.getItem('pastaSeguraUser') || '{}');
       const contactosList = [];
-      if (userData) {
-        for (let i = 1; i <= 3; i++) {
-          const contact = userData[`emergencyContact${i}`];
-          if (contact && contact.phone) {
-            contactosList.push({
-              nome: contact.name || `Contato ${i}`,
-              telefone: contact.phone.replace(/\D/g, '')
-            });
-          }
+
+      for (let i = 1; i <= 3; i++) {
+        const contact = currentUser[`emergencyContact${i}`];
+        if (contact && contact.phone) {
+          contactosList.push({
+            nome: contact.name || `Contato ${i}`,
+            telefone: contact.phone.replace(/\D/g, '')
+          });
         }
       }
 
       const payload = {
         tipo_evento: "SENHA_COACAO",
-        usuario: userData?.fullName || userData?.name || "Usuário Pasta Segura",
+        usuario: currentUser.fullName || currentUser.name || "Usuário Pasta Segura",
         data_hora: new Date().toISOString(),
         localizacao: localizacao,
         contactos: contactosList
       };
 
-      // Envio utilizando FormData/URLSearchParams para evitar preflight OPTIONS e bloqueio de CORS no Chrome
       const formData = new URLSearchParams();
       formData.append('data', JSON.stringify(payload));
       formData.append('tipo_evento', payload.tipo_evento);
@@ -75,9 +102,9 @@ function App() {
         body: formData.toString()
       });
 
-      console.log('Alerta de coação emitido ao n8n com sucesso.');
+      console.log('Alerta emitido ao n8n com sucesso.');
     } catch (error) {
-      console.error('Erro de envio ao n8n:', error);
+      console.error('Falha de envio ao n8n:', error);
     }
   };
 
@@ -88,28 +115,31 @@ function App() {
       link_maps: 'https://maps.google.com/maps?q=-23.55052,-46.633308'
     };
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          await enviarAlertaParaN8N({
-            latitude,
-            longitude,
-            link_maps: `https://maps.google.com/maps?q=${latitude},${longitude}`
-          });
-        },
-        async () => {
-          await enviarAlertaParaN8N(fallbackLocation);
-        },
-        {
-          enableHighAccuracy: false,
-          timeout: 4000,
-          maximumAge: 60000
-        }
-      );
-    } else {
+    try {
+      const position = await Promise.race([
+        Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 5000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout GPS')), 4000))
+      ]);
+
+      const { latitude, longitude } = position.coords;
+      await enviarAlertaParaN8N({
+        latitude,
+        longitude,
+        link_maps: `https://maps.google.com/maps?q=${latitude},${longitude}`
+      });
+    } catch {
       await enviarAlertaParaN8N(fallbackLocation);
     }
+  };
+
+  const handleLoginSuccess = (loginType) => {
+    if (loginType === 'emergency') {
+      setIsEmergencyMode(true);
+      handleEmergencyActivated();
+    } else {
+      setIsEmergencyMode(false);
+    }
+    setCurrentView('folder');
   };
 
   const handleLogout = () => {
@@ -118,7 +148,7 @@ function App() {
   };
 
   const handleResetApp = () => {
-    if (confirm('Tem certeza que deseja apagar todos os dados? Esta ação não pode ser desfeita.')) {
+    if (confirm('Tem a certeza de que deseja apagar todos os dados?')) {
       localStorage.removeItem('pastaSeguraUser');
       localStorage.removeItem('bankApps');
       setUserData(null);
@@ -155,7 +185,6 @@ function App() {
         />
       )}
 
-      {/* Botão de reset (apenas em desenvolvimento) */}
       {process.env.NODE_ENV === 'development' && (
         <button
           onClick={handleResetApp}
