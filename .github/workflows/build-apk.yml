@@ -47,11 +47,19 @@ jobs:
           distribution: 'temurin'
           java-version: 21
 
-      - name: Atualizar Gradle Wrapper para 8.5 e Compilar APK
+      - name: Corrigir duplicações e compilar APK
         run: |
           cd bankseg.orig/android
           sed -i 's/gradle-8.2.1-all.zip/gradle-8.5-all.zip/g' gradle/wrapper/gradle-wrapper.properties
           sed -i 's/gradle-8.2.1-bin.zip/gradle-8.5-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
+          
+          # Força o alinhamento de versões do Kotlin para eliminar classes duplicadas
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+
+          # Adiciona resolução de dependências duplicadas do Kotlin no build.gradle
+          sed -i '/allprojects {/a \    configurations.all { resolutionStrategy { eachDependency { if (requested.group == "org.jetbrains.kotlin") { useVersion "1.8.22" } } } }' build.gradle
+
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
