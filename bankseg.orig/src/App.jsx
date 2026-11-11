@@ -9,8 +9,10 @@ function App() {
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [userData, setUserData] = useState(null);
 
+  // Webhook de produção do n8n
+  const N8N_WEBHOOK_URL = 'https://jh23268419.app.n8n.cloud/webhook/banco-seguro-alerta';
+
   useEffect(() => {
-    // Verificar se usuário já está cadastrado
     const storedUser = localStorage.getItem('pastaSeguraUser');
     if (storedUser) {
       setUserData(JSON.parse(storedUser));
@@ -21,7 +23,6 @@ function App() {
   }, []);
 
   const handleRegisterSuccess = () => {
-    // Recarregar dados do usuário após cadastro
     const storedUser = localStorage.getItem('pastaSeguraUser');
     if (storedUser) {
       setUserData(JSON.parse(storedUser));
@@ -36,61 +37,78 @@ function App() {
     setCurrentView('folder');
   };
 
-  const handleEmergencyActivated = async () => {
+  const enviarAlertaParaN8N = async (localizacao) => {
     try {
-      // Obter localização do usuário
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            const locationUrl = `https://maps.google.com/maps?q=${latitude},${longitude}`;
-            
-            // Preparar mensagem de emergência
-            const emergencyMessage = `🚨 EMERGÊNCIA 🚨\n\nEstou em perigo, avise a polícia. Esta é minha localização:\n\n${locationUrl}\n\nMensagem enviada automaticamente pela Pasta Segura Bancária às ${new Date().toLocaleString('pt-BR')}`;
-            
-            // Enviar para contatos de emergência via WhatsApp
-            if (userData) {
-              for (let i = 1; i <= 3; i++) {
-                const contact = userData[`emergencyContact${i}`];
-                if (contact && contact.phone) {
-                  // Formatar número para WhatsApp (remover formatação)
-                  const phoneNumber = contact.phone.replace(/\D/g, '');
-                  const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(emergencyMessage)}`;
-                  
-                  // Abrir WhatsApp em nova aba
-                  window.open(whatsappUrl, '_blank');
-                  
-                  // Delay entre envios para não sobrecarregar
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-              }
-            }
-          },
-          (error) => {
-            console.error('Erro ao obter localização:', error);
-            // Enviar mensagem sem localização específica
-            const emergencyMessage = `🚨 EMERGÊNCIA 🚨\n\nEstou em perigo, avise a polícia.\n\nNão foi possível obter localização automática.\n\nMensagem enviada automaticamente pela Pasta Segura Bancária às ${new Date().toLocaleString('pt-BR')}`;
-            
-            if (userData) {
-              for (let i = 1; i <= 3; i++) {
-                const contact = userData[`emergencyContact${i}`];
-                if (contact && contact.phone) {
-                  const phoneNumber = contact.phone.replace(/\D/g, '');
-                  const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(emergencyMessage)}`;
-                  window.open(whatsappUrl, '_blank');
-                }
-              }
-            }
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+      const contactosList = [];
+      if (userData) {
+        for (let i = 1; i <= 3; i++) {
+          const contact = userData[`emergencyContact${i}`];
+          if (contact && contact.phone) {
+            contactosList.push({
+              nome: contact.name || `Contato ${i}`,
+              telefone: contact.phone.replace(/\D/g, '')
+            });
           }
-        );
+        }
       }
+
+      const payload = {
+        tipo_evento: "SENHA_COACAO",
+        usuario: userData?.fullName || userData?.name || "Usuário Pasta Segura",
+        data_hora: new Date().toISOString(),
+        localizacao: localizacao,
+        contactos: contactosList
+      };
+
+      // Envio utilizando FormData/URLSearchParams para evitar preflight OPTIONS e bloqueio de CORS no Chrome
+      const formData = new URLSearchParams();
+      formData.append('data', JSON.stringify(payload));
+      formData.append('tipo_evento', payload.tipo_evento);
+      formData.append('usuario', payload.usuario);
+      formData.append('localizacao_link', localizacao.link_maps || '');
+
+      await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: formData.toString()
+      });
+
+      console.log('Alerta de coação emitido ao n8n com sucesso.');
     } catch (error) {
-      console.error('Erro no protocolo de emergência:', error);
+      console.error('Erro de envio ao n8n:', error);
+    }
+  };
+
+  const handleEmergencyActivated = async () => {
+    const fallbackLocation = {
+      latitude: -23.55052,
+      longitude: -46.633308,
+      link_maps: 'https://maps.google.com/maps?q=-23.55052,-46.633308'
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          await enviarAlertaParaN8N({
+            latitude,
+            longitude,
+            link_maps: `https://maps.google.com/maps?q=${latitude},${longitude}`
+          });
+        },
+        async () => {
+          await enviarAlertaParaN8N(fallbackLocation);
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 4000,
+          maximumAge: 60000
+        }
+      );
+    } else {
+      await enviarAlertaParaN8N(fallbackLocation);
     }
   };
 

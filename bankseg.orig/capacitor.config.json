@@ -1,0 +1,9 @@
+﻿{
+  "appId": "com.pastasegura.bankseg",
+  "appName": "Pasta Segura",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
