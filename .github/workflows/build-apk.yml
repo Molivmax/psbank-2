@@ -18,11 +18,12 @@ jobs:
         with:
           node-version: 18
 
-      - name: Limpar módulos do Windows e instalar dependências limpas
+      - name: Instalar dependências e binário nativo do Linux
         run: |
           cd bankseg.orig
           rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
+          npm install --legacy-peer-deps @tailwindcss/oxide-linux-x64-gnu
 
       - name: Instalar Capacitor e dependências Android
         run: |
