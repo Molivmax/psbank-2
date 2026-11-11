@@ -25,10 +25,17 @@ jobs:
           npm install --legacy-peer-deps
           npm install --legacy-peer-deps @tailwindcss/oxide-linux-x64-gnu
 
-      - name: Instalar Capacitor e dependências Android
+      - name: Instalar Capacitor e plugins nativos
         run: |
           cd bankseg.orig
-          npm install --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
+          npm install --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android @capacitor/app-launcher
+
+      - name: Corrigir abertura nativa dos bancos no código
+        run: |
+          cd bankseg.orig
+          # Substitui abertura de link de Play Store por chamada nativa de intent do Android
+          find src -type f \( -name "*.tsx" -o -name "*.jsx" -o -name "*.ts" -o -name "*.js" \) -exec sed -i 's|https://play.google.com/store/apps/details?id=|android-app://|g' {} +
+          find src -type f \( -name "*.tsx" -o -name "*.jsx" -o -name "*.ts" -o -name "*.js" \) -exec sed -i 's|market://details?id=|android-app://|g' {} +
 
       - name: Compilar projeto React (Vite)
         run: |
@@ -40,6 +47,12 @@ jobs:
           cd bankseg.orig
           npx cap add android || true
           npx cap sync android
+
+      - name: Liberar permissão de consultar e abrir outros apps no Android
+        run: |
+          cd bankseg.orig/android/app/src/main
+          # Adiciona permissão de consulta global de pacotes para o Android 11+ conseguir abrir qualquer banco instalado
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" \/>' AndroidManifest.xml
 
       - name: Configurar Java JDK 21
         uses: actions/setup-java@v4
@@ -53,11 +66,9 @@ jobs:
           sed -i 's/gradle-8.2.1-all.zip/gradle-8.5-all.zip/g' gradle/wrapper/gradle-wrapper.properties
           sed -i 's/gradle-8.2.1-bin.zip/gradle-8.5-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
           
-          # Força o alinhamento de versões do Kotlin para eliminar classes duplicadas
           echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
 
-          # Adiciona resolução de dependências duplicadas do Kotlin no build.gradle
           sed -i '/allprojects {/a \    configurations.all { resolutionStrategy { eachDependency { if (requested.group == "org.jetbrains.kotlin") { useVersion "1.8.22" } } } }' build.gradle
 
           chmod +x gradlew
