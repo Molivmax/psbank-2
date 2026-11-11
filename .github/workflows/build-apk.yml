@@ -51,7 +51,7 @@ jobs:
         run: |
           cd bankseg.orig/android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
 
       - name: Disponibilizar APK para download
         uses: actions/upload-artifact@v4
