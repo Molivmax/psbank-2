@@ -41,17 +41,18 @@ jobs:
           npx cap add android || true
           npx cap sync android
 
-      - name: Configurar Java JDK 21
+      - name: Configurar Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 21
+          java-version: 17
 
-      - name: Compilar APK (Gradle)
+      - name: Atualizar Gradle e Compilar APK
         run: |
           cd bankseg.orig/android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew wrapper --gradle-version 8.5
+          ./gradlew assembleDebug --no-daemon
 
       - name: Disponibilizar APK para download
         uses: actions/upload-artifact@v4
