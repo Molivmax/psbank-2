@@ -47,11 +47,12 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Atualizar Gradle e Compilar APK
+      - name: Atualizar Gradle Wrapper para 8.5 e Compilar APK
         run: |
           cd bankseg.orig/android
+          sed -i 's/gradle-8.2.1-all.zip/gradle-8.5-all.zip/g' gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/gradle-8.2.1-bin.zip/gradle-8.5-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
           chmod +x gradlew
-          ./gradlew wrapper --gradle-version 8.5
           ./gradlew assembleDebug --no-daemon
 
       - name: Disponibilizar APK para download
