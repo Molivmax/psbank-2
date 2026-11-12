@@ -1,293 +1,325 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shield, User, Mail, Lock, MessageCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-// Lista de bancos populares com pacotes Android (Package Names) e esquemas de abertura
-const BANCOS_DISPONIVEIS = [
-  { id: 'nubank', nome: 'Nubank', cor: '#820AD1', icone: '🟣', scheme: 'nubank://', package: 'com.nu.production' },
-  { id: 'itau', nome: 'Itaú', cor: '#EC7000', icone: '🟧', scheme: 'itau://', package: 'com.itau' },
-  { id: 'bradesco', nome: 'Bradesco', cor: '#CC092F', icone: '🔴', scheme: 'bradesco://', package: 'com.bradesco' },
-  { id: 'inter', nome: 'Banco Inter', cor: '#FF7A00', icone: '🟠', scheme: 'inter://', package: 'br.com.intermedium' },
-  { id: 'santander', nome: 'Santander', cor: '#E60000', icone: '🔺', scheme: 'santander://', package: 'com.santander.app' },
-  { id: 'caixa', nome: 'Caixa', cor: '#005CA9', icone: '🟦', scheme: 'caixa://', package: 'br.com.gabba.Caixa' },
-  { id: 'bb', nome: 'Banco do Brasil', cor: '#FDF100', icone: '🟡', scheme: 'bb://', package: 'br.com.bb.android' },
-  { id: 'c6', nome: 'C6 Bank', cor: '#1A1A1A', icone: '⚫', scheme: 'c6bank://', package: 'com.c6bank.app' },
-  { id: 'mercadopago', nome: 'Mercado Pago', cor: '#009EE3', icone: '💠', scheme: 'mercadopago://', package: 'com.mercadopago.wallet' }
-];
+const Register = ({ onRegisterSuccess }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    normalPassword: '',
+    securityPassword: '',
+    emergencyContact1: { name: '', phone: '', verified: false },
+    emergencyContact2: { name: '', phone: '', verified: false },
+    emergencyContact3: { name: '', phone: '', verified: false }
+  });
 
-export default function BankAppsFolder({ isEmergencyMode, onLogout }) {
-  const [bancosSelecionados, setBancosSelecionados] = useState([]);
-  const [modalAberto, setModalAberto] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const salvos = localStorage.getItem('pastaSegura_bancos');
-    if (salvos) {
-      setBancosSelecionados(JSON.parse(salvos));
-    } else {
-      // Padrão inicial: Nubank e Itaú
-      const padrao = [BANCOS_DISPONIVEIS[0], BANCOS_DISPONIVEIS[1]];
-      setBancosSelecionados(padrao);
-      localStorage.setItem('pastaSegura_bancos', JSON.stringify(padrao));
-    }
-  }, []);
-
-  const salvarBancos = (lista) => {
-    setBancosSelecionados(lista);
-    localStorage.setItem('pastaSegura_bancos', JSON.stringify(lista));
-  };
-
-  const alternarBanco = (banco) => {
-    const jaExiste = bancosSelecionados.some(b => b.id === banco.id);
-    if (jaExiste) {
-      salvarBancos(bancosSelecionados.filter(b => b.id !== banco.id));
-    } else {
-      salvarBancos([...bancosSelecionados, banco]);
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
     }
   };
 
-  const abrirBanco = (banco) => {
-    // 1. Tenta abrir diretamente pelo protocolo nativo ou intent do Android
-    const intentUrl = `intent://#Intent;package=${banco.package};scheme=${banco.id};end;`;
-    
-    // Tenta disparar o aplicativo nativo
-    window.location.href = intentUrl;
+  const handleContactChange = (contactIndex, field, value) => {
+    const contactKey = `emergencyContact${contactIndex}`;
+    setFormData(prev => ({
+      ...prev,
+      [contactKey]: {
+        ...prev[contactKey],
+        [field]: value,
+        ...(field === 'phone' ? { verified: false } : {})
+      }
+    }));
+    if (errors[`contact${contactIndex}Phone`]) {
+      setErrors(prev => ({
+        ...prev,
+        [`contact${contactIndex}Phone`]: ''
+      }));
+    }
+  };
 
-    // Fallback caso o app não esteja instalado (abre a Play Store)
-    setTimeout(() => {
-      window.open(`https://play.google.com/store/apps/details?id=${banco.package}`, '_blank');
-    }, 1500);
+  const handleTestarWhatsApp = (contactIndex) => {
+    const contact = formData[`emergencyContact${contactIndex}`];
+    const numbers = contact.phone.replace(/\D/g, '');
+
+    if (numbers.length < 10) {
+      setErrors(prev => ({
+        ...prev,
+        [`contact${contactIndex}Phone`]: 'Digite o DDD + número antes de validar'
+      }));
+      return;
+    }
+
+    const userName = formData.name.trim() || 'um usuário';
+    const message = encodeURIComponent(
+      `Olá! Você foi cadastrado como contato de emergência de *${userName}* no sistema *Pasta Segura*. Caso receba um alerta automático deste sistema com localização em tempo real, acione ajuda imediatamente. Responda "OK" para confirmar o recebimento.`
+    );
+
+    const whatsappUrl = `https://wa.me/55${numbers}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+
+    // Marca como verificado visualmente
+    const contactKey = `emergencyContact${contactIndex}`;
+    setFormData(prev => ({
+      ...prev,
+      [contactKey]: {
+        ...prev[contactKey],
+        verified: true
+      }
+    }));
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório';
+    if (!formData.email.trim()) newErrors.email = 'E-mail é obrigatório';
+    if (!formData.normalPassword) newErrors.normalPassword = 'Senha normal é obrigatória';
+    if (!formData.securityPassword) newErrors.securityPassword = 'Senha de segurança é obrigatória';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.email && !emailRegex.test(formData.email)) {
+      newErrors.email = 'E-mail inválido';
+    }
+
+    if (formData.normalPassword && formData.normalPassword.length !== 4) {
+      newErrors.normalPassword = 'Senha deve ter 4 dígitos';
+    }
+    if (formData.securityPassword && formData.securityPassword.length !== 4) {
+      newErrors.securityPassword = 'Senha deve ter 4 dígitos';
+    }
+
+    if (
+      formData.normalPassword &&
+      formData.securityPassword &&
+      formData.normalPassword === formData.securityPassword
+    ) {
+      newErrors.securityPassword = 'Senhas devem ser diferentes';
+    }
+
+    // Apenas o Contato 1 (WhatsApp principal) é obrigatório; os demais são opcionais
+    for (let i = 1; i <= 3; i++) {
+      const contact = formData[`emergencyContact${i}`];
+      const hasPhone = contact.phone.trim().length > 0;
+
+      if (i === 1 && !hasPhone) {
+        newErrors[`contact${i}Phone`] = 'WhatsApp principal é obrigatório';
+      } else if (hasPhone && !/^\(\d{2}\)\s\d{4,5}-\d{4}$/.test(contact.phone)) {
+        newErrors[`contact${i}Phone`] = 'Formato: (11) 99999-9999';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const userData = {
+        ...formData,
+        registeredAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('pastaSeguraUser', JSON.stringify(userData));
+      onRegisterSuccess();
+    } catch (error) {
+      console.error('Erro no cadastro:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatPhoneNumber = (value) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length === 0) return '';
+    if (numbers.length <= 2) return `(${numbers}`;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <div>
-            <h2 style={styles.title}>Pasta Bancária</h2>
-            <p style={styles.subtitle}>
-              {isEmergencyMode ? 'Modo de Emergência Ativo' : 'Seus Aplicativos Protegidos'}
-            </p>
+    <div className="app-container flex items-center justify-center p-4">
+      <Card className="form-container w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="logo-container">
+            <Shield className="w-16 h-16 mx-auto mb-4 text-primary" />
+            <CardTitle className="logo-text text-2xl">Pasta Segura Bancária</CardTitle>
           </div>
-          <button onClick={() => setModalAberto(true)} style={styles.addBtn} title="Configurar bancos">
-            ⚙️ Gerenciar
-          </button>
-        </div>
+          <CardDescription className="text-muted-foreground">
+            Crie sua conta e vincule o WhatsApp de emergência
+          </CardDescription>
+        </CardHeader>
 
-        {isEmergencyMode && (
-          <div style={styles.alertBanner}>
-            ⚠️ Modo Coação ativo: saldo protegido e alerta silencioso acionado.
-          </div>
-        )}
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Dados Pessoais */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Seu Nome Completo
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                className={errors.name ? 'border-destructive' : ''}
+                placeholder="Ex: João Silva"
+              />
+              {errors.name && <p className="text-destructive text-sm">{errors.name}</p>}
+            </div>
 
-        <div style={styles.grid}>
-          {bancosSelecionados.map((banco) => (
-            <div 
-              key={banco.id} 
-              onClick={() => abrirBanco(banco)}
-              style={styles.appIcon}
-            >
-              <div style={{ ...styles.iconBox, backgroundColor: banco.cor }}>
-                <span style={{ fontSize: '24px' }}>{banco.icone}</span>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                E-mail
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                className={errors.email ? 'border-destructive' : ''}
+                placeholder="seu@email.com"
+              />
+              {errors.email && <p className="text-destructive text-sm">{errors.email}</p>}
+            </div>
+
+            {/* Senhas */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="normalPassword" className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Senha Normal
+                </Label>
+                <Input
+                  id="normalPassword"
+                  type="password"
+                  maxLength="4"
+                  value={formData.normalPassword}
+                  onChange={(e) => handleInputChange('normalPassword', e.target.value.replace(/\D/g, ''))}
+                  className={`security-input ${errors.normalPassword ? 'border-destructive' : ''}`}
+                  placeholder="0000"
+                />
+                {errors.normalPassword && <p className="text-destructive text-sm">{errors.normalPassword}</p>}
               </div>
-              <span style={styles.appName}>{banco.nome}</span>
+
+              <div className="space-y-2">
+                <Label htmlFor="securityPassword" className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Senha Coação
+                </Label>
+                <Input
+                  id="securityPassword"
+                  type="password"
+                  maxLength="4"
+                  value={formData.securityPassword}
+                  onChange={(e) => handleInputChange('securityPassword', e.target.value.replace(/\D/g, ''))}
+                  className={`security-input ${errors.securityPassword ? 'border-destructive' : ''}`}
+                  placeholder="9999"
+                />
+                {errors.securityPassword && <p className="text-destructive text-sm">{errors.securityPassword}</p>}
+              </div>
             </div>
-          ))}
 
-          <div onClick={() => setModalAberto(true)} style={styles.appIcon}>
-            <div style={{ ...styles.iconBox, border: '2px dashed #94a3b8', backgroundColor: 'transparent' }}>
-              <span style={{ fontSize: '24px', color: '#94a3b8' }}>+</span>
-            </div>
-            <span style={styles.appName}>Adicionar</span>
-          </div>
-        </div>
+            {/* Contatos de WhatsApp para Alerta */}
+            <div className="space-y-3 pt-2">
+              <div>
+                <h3 className="text-base font-semibold flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-green-500" />
+                  WhatsApp para Alertas de Emergência
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Informe o celular com WhatsApp que receberá sua localização. Clique no botão verde para enviar o aviso de autorização.
+                </p>
+              </div>
 
-        <button onClick={onLogout} style={styles.logoutBtn}>
-          Bloquear Pasta
-        </button>
-      </div>
-
-      {/* Modal para Escolher/Adicionar Bancos */}
-      {modalAberto && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '18px', color: '#0f172a' }}>Escolha os Bancos da Pasta</h3>
-            <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
-              Selecione quais aplicativos bancários você deseja acessar por aqui:
-            </p>
-            <div style={styles.modalList}>
-              {BANCOS_DISPONIVEIS.map((b) => {
-                const ativo = bancosSelecionados.some(sel => sel.id === b.id);
+              {[1, 2, 3].map((i) => {
+                const contact = formData[`emergencyContact${i}`];
                 return (
-                  <div 
-                    key={b.id} 
-                    onClick={() => alternarBanco(b)}
-                    style={{
-                      ...styles.modalItem,
-                      backgroundColor: ativo ? '#eff6ff' : '#f8fafc',
-                      borderColor: ativo ? '#3b82f6' : '#e2e8f0'
-                    }}
-                  >
-                    <span style={{ fontSize: '20px', marginRight: '10px' }}>{b.icone}</span>
-                    <span style={{ flex: 1, fontWeight: '500', color: '#1e293b' }}>{b.nome}</span>
-                    <input type="checkbox" checked={ativo} readOnly style={{ cursor: 'pointer' }} />
+                  <div key={i} className="space-y-2 p-3 border border-border rounded-lg bg-card/50">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">
+                        {i === 1 ? 'WhatsApp Principal (Obrigatório)' : `WhatsApp Reserva ${i - 1} (Opcional)`}
+                      </Label>
+                      {contact.verified && (
+                        <span className="text-xs text-green-500 flex items-center gap-1 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Testado
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="text"
+                        value={contact.name}
+                        onChange={(e) => handleContactChange(i, 'name', e.target.value)}
+                        placeholder="Nome (ex: Esposa)"
+                      />
+                      <div>
+                        <Input
+                          type="tel"
+                          value={contact.phone}
+                          onChange={(e) => handleContactChange(i, 'phone', formatPhoneNumber(e.target.value))}
+                          className={errors[`contact${i}Phone`] ? 'border-destructive' : ''}
+                          placeholder="(11) 99999-9999"
+                          maxLength="15"
+                        />
+                      </div>
+                    </div>
+
+                    {errors[`contact${i}Phone`] && (
+                      <p className="text-destructive text-xs">{errors[`contact${i}Phone`]}</p>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestarWhatsApp(i)}
+                      className="w-full text-xs border-green-600/40 text-green-600 hover:bg-green-600/10 flex items-center justify-center gap-1.5"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      Enviar autorização pelo WhatsApp
+                    </Button>
                   </div>
                 );
               })}
             </div>
-            <button onClick={() => setModalAberto(false)} style={styles.modalCloseBtn}>
-              Concluir
-            </button>
-          </div>
-        </div>
-      )}
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="loading-spinner w-4 h-4"></div>
+                  Salvando cadastro...
+                </div>
+              ) : (
+                'Concluir Cadastro'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
-}
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    backgroundColor: '#0f172a',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: 'sans-serif',
-    padding: '16px'
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: '20px',
-    padding: '24px',
-    width: '100%',
-    maxWidth: '400px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px'
-  },
-  title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#0f172a'
-  },
-  subtitle: {
-    margin: '4px 0 0',
-    fontSize: '13px',
-    color: '#64748b'
-  },
-  addBtn: {
-    background: '#f1f5f9',
-    border: '1px solid #cbd5e1',
-    borderRadius: '8px',
-    padding: '6px 10px',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    color: '#334155'
-  },
-  alertBanner: {
-    backgroundColor: '#fef2f2',
-    color: '#991b1b',
-    padding: '10px 14px',
-    borderRadius: '10px',
-    fontSize: '12px',
-    marginBottom: '18px',
-    border: '1px solid #fee2e2'
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '16px',
-    margin: '20px 0 30px',
-    justifyItems: 'center'
-  },
-  appIcon: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    cursor: 'pointer',
-    width: '76px'
-  },
-  iconBox: {
-    width: '60px',
-    height: '60px',
-    borderRadius: '16px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-    marginBottom: '8px'
-  },
-  appName: {
-    fontSize: '12px',
-    color: '#334155',
-    fontWeight: '500',
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    maxWidth: '74px'
-  },
-  logoutBtn: {
-    width: '100%',
-    padding: '14px',
-    backgroundColor: '#fee2e2',
-    color: '#b91c1c',
-    border: 'none',
-    borderRadius: '12px',
-    fontWeight: 'bold',
-    fontSize: '14px',
-    cursor: 'pointer'
-  },
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 9999,
-    padding: '16px'
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    padding: '20px',
-    width: '100%',
-    maxWidth: '360px',
-    maxHeight: '80vh',
-    display: 'flex',
-    flexDirection: 'column'
-  },
-  modalList: {
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginBottom: '16px',
-    maxHeight: '300px'
-  },
-  modalItem: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '10px 12px',
-    borderRadius: '10px',
-    border: '1px solid',
-    cursor: 'pointer'
-  },
-  modalCloseBtn: {
-    width: '100%',
-    padding: '12px',
-    backgroundColor: '#0ea5e9',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '10px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  }
 };
+
+export default Register;
