@@ -12,7 +12,6 @@ function App() {
 
   const N8N_WEBHOOK_URL = 'https://jh23268419.app.n8n.cloud/webhook/banco-seguro-alerta';
 
-  // Solicita permissão nativa de GPS na primeira utilização ou cadastro
   const solicitarPermissaoGPS = async () => {
     try {
       const status = await Geolocation.checkPermissions();
@@ -20,7 +19,7 @@ function App() {
         await Geolocation.requestPermissions();
       }
     } catch (err) {
-      console.warn('Ambiente web ou permissão não suportada de imediato:', err);
+      console.warn('Erro ao checar permissão de GPS:', err);
     }
   };
 
@@ -35,7 +34,6 @@ function App() {
     solicitarPermissaoGPS();
   }, []);
 
-  // Bloqueio automático imediato ao ir para segundo plano (ao minimizar ou abrir um banco)
   useEffect(() => {
     const handleLockOnBackground = () => {
       if (document.hidden) {
@@ -65,70 +63,68 @@ function App() {
     }
   };
 
-  const enviarAlertaParaN8N = async (localizacao) => {
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('pastaSeguraUser') || '{}');
-      const contactosList = [];
+  // Extrai os números limpos (DDD + número, sem o 55, pois o n8n já adiciona "55" na frente)
+  const extrairContatosParaN8N = (user) => {
+    const lista = [];
+    const candidatos = [
+      user?.emergencyContact1?.phone,
+      user?.emergencyContact2?.phone,
+      user?.emergencyContact3?.phone
+    ];
 
-      for (let i = 1; i <= 3; i++) {
-        const contact = currentUser[`emergencyContact${i}`];
-        if (contact && contact.phone) {
-          contactosList.push({
-            nome: contact.name || `Contato ${i}`,
-            telefone: contact.phone.replace(/\D/g, '')
-          });
+    for (const tel of candidatos) {
+      if (tel) {
+        let limpo = tel.replace(/\D/g, '');
+        if (limpo.startsWith('55') && limpo.length >= 12) {
+          limpo = limpo.slice(2);
+        }
+        if (limpo.length >= 10) {
+          lista.push(limpo);
         }
       }
+    }
+    return [...new Set(lista)];
+  };
 
+  const enviarAlertaParaN8N = async (linkMaps) => {
+    try {
+      const rawUser = localStorage.getItem('pastaSeguraUser') || '{}';
+      const currentUser = JSON.parse(rawUser);
+      const contactos = extrairContatosParaN8N(currentUser);
+
+      // Envia exatamente no formato que o nó MegaAPI do seu n8n espera
       const payload = {
-        tipo_evento: "SENHA_COACAO",
-        usuario: currentUser.fullName || currentUser.name || "Usuário Pasta Segura",
-        data_hora: new Date().toISOString(),
-        localizacao: localizacao,
-        contactos: contactosList
+        usuario: currentUser.name || 'Usuário Pasta Segura',
+        contactos: contactos,
+        localizacao: linkMaps,
+        data_hora: new Date().toISOString()
       };
-
-      const formData = new URLSearchParams();
-      formData.append('data', JSON.stringify(payload));
-      formData.append('tipo_evento', payload.tipo_evento);
-      formData.append('usuario', payload.usuario);
-      formData.append('localizacao_link', localizacao.link_maps || '');
 
       await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          'Content-Type': 'application/json'
         },
-        body: formData.toString()
+        body: JSON.stringify(payload)
       });
-
-      console.log('Alerta emitido ao n8n com sucesso.');
     } catch (error) {
       console.error('Falha de envio ao n8n:', error);
     }
   };
 
   const handleEmergencyActivated = async () => {
-    const fallbackLocation = {
-      latitude: -23.55052,
-      longitude: -46.633308,
-      link_maps: 'https://maps.google.com/maps?q=-23.55052,-46.633308'
-    };
+    const fallbackLink = 'https://maps.google.com/maps?q=-23.55052,-46.633308';
 
     try {
       const position = await Promise.race([
-        Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 5000 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout GPS')), 4000))
+        Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 4000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout GPS')), 3500))
       ]);
 
       const { latitude, longitude } = position.coords;
-      await enviarAlertaParaN8N({
-        latitude,
-        longitude,
-        link_maps: `https://maps.google.com/maps?q=${latitude},${longitude}`
-      });
+      await enviarAlertaParaN8N(`https://maps.google.com/maps?q=${latitude},${longitude}`);
     } catch {
-      await enviarAlertaParaN8N(fallbackLocation);
+      await enviarAlertaParaN8N(fallbackLink);
     }
   };
 
@@ -145,16 +141,6 @@ function App() {
   const handleLogout = () => {
     setIsEmergencyMode(false);
     setCurrentView('login');
-  };
-
-  const handleResetApp = () => {
-    if (confirm('Tem a certeza de que deseja apagar todos os dados?')) {
-      localStorage.removeItem('pastaSeguraUser');
-      localStorage.removeItem('bankApps');
-      setUserData(null);
-      setIsEmergencyMode(false);
-      setCurrentView('register');
-    }
   };
 
   if (currentView === 'loading') {
@@ -183,27 +169,6 @@ function App() {
           isEmergencyMode={isEmergencyMode}
           onLogout={handleLogout}
         />
-      )}
-
-      {process.env.NODE_ENV === 'development' && (
-        <button
-          onClick={handleResetApp}
-          style={{
-            position: 'fixed',
-            bottom: '10px',
-            left: '10px',
-            background: '#ff4444',
-            color: 'white',
-            border: 'none',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            zIndex: 1000
-          }}
-        >
-          Reset App
-        </button>
       )}
     </div>
   );
