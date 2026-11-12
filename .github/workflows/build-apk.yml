@@ -61,7 +61,7 @@ jobs:
           distribution: 'temurin'
           java-version: 21
 
-      - name: Corrigir duplicações e compilar APK
+      - name: Configurar repositórios e compilar APK
         run: |
           cd bankseg.orig/android
           sed -i 's/gradle-8.2.1-all.zip/gradle-8.5-all.zip/g' gradle/wrapper/gradle-wrapper.properties
@@ -70,7 +70,9 @@ jobs:
           echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
 
-          sed -i '/allprojects {/a \    configurations.all { resolutionStrategy { eachDependency { if (requested.group == "org.jetbrains.kotlin") { useVersion "1.8.22" } } } }' build.gradle
+          # Adiciona mavenCentral() e kotlin gradle plugin compatível
+          sed -i 's/repositories {/repositories { mavenCentral() google()/g' build.gradle
+          sed -i 's/classpath '\''com.android.tools.build:gradle:[^'\'']*'\''/classpath '\''com.android.tools.build:gradle:8.2.1'\''\n        classpath '\''org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'\''/g' build.gradle
 
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
