@@ -16,19 +16,20 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Instalar dependências e binário nativo do Linux
         run: |
           cd bankseg.orig
           rm -rf node_modules package-lock.json
-          npm install --legacy-peer-deps
-          npm install --legacy-peer-deps @tailwindcss/oxide-linux-x64-gnu
+          sed -i 's/"@babel\/types": "[^"]*"/"@babel\/types": "^7.24.0"/g' package.json
+          npm install --legacy-peer-deps --force
+          npm install --legacy-peer-deps --force @tailwindcss/oxide-linux-x64-gnu
 
       - name: Instalar Capacitor e plugins nativos (Launcher e Geolocation)
         run: |
           cd bankseg.orig
-          npm install --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android @capacitor/app-launcher @capacitor/geolocation
+          npm install --legacy-peer-deps --force @capacitor/core @capacitor/cli @capacitor/android @capacitor/app-launcher @capacitor/geolocation
 
       - name: Corrigir abertura nativa dos bancos no código
         run: |
