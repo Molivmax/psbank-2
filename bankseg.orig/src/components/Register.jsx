@@ -68,9 +68,7 @@ const Register = ({ onRegisterSuccess }) => {
     );
 
     const whatsappUrl = `https://wa.me/55${numbers}?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-
-    // Marca como verificado visualmente
+    
     const contactKey = `emergencyContact${contactIndex}`;
     setFormData(prev => ({
       ...prev,
@@ -79,6 +77,8 @@ const Register = ({ onRegisterSuccess }) => {
         verified: true
       }
     }));
+
+    window.location.href = whatsappUrl;
   };
 
   const validateForm = () => {
@@ -109,7 +109,6 @@ const Register = ({ onRegisterSuccess }) => {
       newErrors.securityPassword = 'Senhas devem ser diferentes';
     }
 
-    // Apenas o Contato 1 (WhatsApp principal) é obrigatório; os demais são opcionais
     for (let i = 1; i <= 3; i++) {
       const contact = formData[`emergencyContact${i}`];
       const hasPhone = contact.phone.trim().length > 0;
@@ -170,7 +169,6 @@ const Register = ({ onRegisterSuccess }) => {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Dados Pessoais */}
             <div className="space-y-2">
               <Label htmlFor="name" className="flex items-center gap-2">
                 <User className="w-4 h-4" />
@@ -203,7 +201,6 @@ const Register = ({ onRegisterSuccess }) => {
               {errors.email && <p className="text-destructive text-sm">{errors.email}</p>}
             </div>
 
-            {/* Senhas */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="normalPassword" className="flex items-center gap-2">
@@ -240,7 +237,6 @@ const Register = ({ onRegisterSuccess }) => {
               </div>
             </div>
 
-            {/* Contatos de WhatsApp para Alerta */}
             <div className="space-y-3 pt-2">
               <div>
                 <h3 className="text-base font-semibold flex items-center gap-2">
