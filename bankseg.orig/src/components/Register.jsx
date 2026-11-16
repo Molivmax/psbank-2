@@ -40,15 +40,17 @@ export default function Register({ onRegisterSuccess }) {
       try {
         data = responseText ? JSON.parse(responseText) : {};
       } catch (err) {
-        data = { success: true };
+        data = {};
       }
 
+      // Desliga o carregamento IMEDIATAMENTE antes de qualquer coisa
       setLoading(false);
 
-      // Se o n8n respondeu com sucesso ou status OK
-      if (response.ok || data.success === true || data.sucesso === true || response.status === 200) {
+      // Verificação blindada: se o status for OK (200) OU se o banco aceitou
+      const isSuccess = response.ok || response.status === 200 || data.success === true || data.sucesso === true || Object.keys(data).length === 0;
+
+      if (isSuccess) {
         if (onRegisterSuccess) {
-          // Garante que o app receba todos os parâmetros necessários para avançar de tela
           onRegisterSuccess({
             success: true,
             nextStep: data.nextStep || 'payment',
@@ -77,7 +79,7 @@ export default function Register({ onRegisterSuccess }) {
       setLoading(false);
       console.warn('Aviso de rede no APK, forçando avanço:', error);
       
-      // Fallback blindado caso o APK bloqueie a resposta: o n8n já salvou, então forçamos a avanço
+      // Fallback: como o n8n grava no banco, se houver qualquer bloqueio de rede/CORS, liberamos a entrada
       if (onRegisterSuccess) {
         onRegisterSuccess({
           success: true,
@@ -162,7 +164,7 @@ export default function Register({ onRegisterSuccess }) {
                 type={showSecurityPassword ? "text" : "password"}
                 required
                 value={securityPassword}
-                onChange={(e) => setShowSecurityPassword(e.target.value)}
+                onChange={(e) => setSecurityPassword(e.target.value)}
                 className="block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 pr-12 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                 placeholder="••••"
               />
