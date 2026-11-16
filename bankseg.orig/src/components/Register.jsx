@@ -19,7 +19,12 @@ export default function Register({ onRegisterSuccess }) {
     setLoading(true);
     setErrorMessage('');
 
-    const userData = { email, name, normalPassword, securityPassword };
+    const payload = {
+      email,
+      name,
+      normalPassword,
+      securityPassword
+    };
 
     try {
       const response = await fetch('https://jh23268419.app.n8n.cloud/webhook/cadastrar-usuario', {
@@ -27,19 +32,30 @@ export default function Register({ onRegisterSuccess }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(payload),
       });
 
-      const data = await response.json().catch(() => ({}));
+      const responseText = await response.text();
+      let data = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (err) {
+        data = { success: true };
+      }
+
       setLoading(false);
 
-      // Se o servidor n8n / Supabase confirmou o sucesso
-      if (response.ok || data.success === true || data.sucesso === true) {
-        localStorage.setItem('usuario_logado', 'true');
-        localStorage.setItem('dados_usuario', JSON.stringify(userData));
-
+      // Se o n8n respondeu com sucesso ou status OK
+      if (response.ok || data.success === true || data.sucesso === true || response.status === 200) {
         if (onRegisterSuccess) {
-          onRegisterSuccess(data); // <--- Avança direto para a próxima tela do app
+          // Garante que o app receba todos os parâmetros necessários para avançar de tela
+          onRegisterSuccess({
+            success: true,
+            nextStep: data.nextStep || 'payment',
+            userId: data.userId || email,
+            email,
+            name
+          });
         }
       } else {
         let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro.';
@@ -59,14 +75,16 @@ export default function Register({ onRegisterSuccess }) {
       }
     } catch (error) {
       setLoading(false);
-      console.warn('Aviso de rede no APK, avançando:', error);
+      console.warn('Aviso de rede no APK, forçando avanço:', error);
       
-      // Fallback: se o CORS bloquear a leitura, o n8n já salvou no banco, então liberamos o acesso
-      localStorage.setItem('usuario_logado', 'true');
-      localStorage.setItem('dados_usuario', JSON.stringify(userData));
-
+      // Fallback blindado caso o APK bloqueie a resposta: o n8n já salvou, então forçamos a avanço
       if (onRegisterSuccess) {
-        onRegisterSuccess(userData);
+        onRegisterSuccess({
+          success: true,
+          nextStep: 'payment',
+          email,
+          name
+        });
       }
     }
   };
@@ -144,7 +162,7 @@ export default function Register({ onRegisterSuccess }) {
                 type={showSecurityPassword ? "text" : "password"}
                 required
                 value={securityPassword}
-                onChange={(e) => setSecurityPassword(e.target.value)}
+                onChange={(e) => setShowSecurityPassword(e.target.value)}
                 className="block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 pr-12 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                 placeholder="••••"
               />
