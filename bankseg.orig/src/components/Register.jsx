@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Register({ onNavigateToPayment }) {
+export default function Register({ onRegisterSuccess }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [normalPassword, setNormalPassword] = useState('');
@@ -14,6 +14,7 @@ export default function Register({ onNavigateToPayment }) {
     setErrorMessage('');
 
     try {
+      // Envia os dados para o webhook do n8n que salva no Supabase (com is_paid = false)
       const response = await fetch('https://jh23268419.app.n8n.cloud/webhook/cadastrar-usuario', {
         method: 'POST',
         headers: {
@@ -30,11 +31,11 @@ export default function Register({ onNavigateToPayment }) {
       const data = await response.json();
 
       if (response.ok && data.sucesso) {
-        // Cadastro efetuado com sucesso, redirecionando para o pagamento
-        if (onNavigateToPayment) {
-          onNavigateToPayment(data);
+        // Cadastro realizado com sucesso! Entra direto no app (período de teste)
+        if (onRegisterSuccess) {
+          onRegisterSuccess(data);
         } else {
-          alert('Cadastro realizado com sucesso! Prosseguindo para o pagamento...');
+          alert('Cadastro realizado com seja bem-vindo ao período de teste!');
         }
       } else {
         setErrorMessage(data.mensagem || 'Erro ao realizar o cadastro. Tente novamente.');
@@ -55,7 +56,7 @@ export default function Register({ onNavigateToPayment }) {
             Criar Conta
           </h2>
           <p className="mt-2 text-center text-sm text-gray-400">
-            Preencha os campos abaixo para se cadastrar
+            Cadastre-se e comece seu período de teste gratuito
           </p>
         </div>
 
@@ -122,7 +123,7 @@ export default function Register({ onNavigateToPayment }) {
               disabled={loading}
               className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
             >
-              {loading ? 'Cadastrando...' : 'Cadastrar e Ir para Pagamento'}
+              {loading ? 'Cadastrando...' : 'Entrar no Aplicativo'}
             </button>
           </div>
         </form>
