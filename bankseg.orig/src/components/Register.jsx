@@ -14,7 +14,6 @@ export default function Register({ onRegisterSuccess }) {
     setErrorMessage('');
 
     try {
-      // Envia os dados para o webhook do n8n que salva no Supabase (com is_paid = false)
       const response = await fetch('https://jh23268419.app.n8n.cloud/webhook/cadastrar-usuario', {
         method: 'POST',
         headers: {
@@ -28,17 +27,31 @@ export default function Register({ onRegisterSuccess }) {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (response.ok && data.sucesso) {
-        // Cadastro realizado com sucesso! Entra direto no app (período de teste)
+      // Verifica se a resposta deu certo e se o n8n retornou sucesso: true
+      if (response.ok && (data.success === true || data.sucesso === true)) {
         if (onRegisterSuccess) {
           onRegisterSuccess(data);
         } else {
-          alert('Cadastro realizado com seja bem-vindo ao período de teste!');
+          alert('Cadastro realizado com sucesso! Bem-vindo ao período de teste.');
         }
       } else {
-        setErrorMessage(data.mensagem || 'Erro ao realizar o cadastro. Tente novamente.');
+        // Pega a mensagem de erro do servidor
+        let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro. Tente novamente.';
+        
+        // Verifica se o erro é de e-mail duplicado no banco de dados
+        const lowerMsg = msg.toLowerCase();
+        if (
+          lowerMsg.includes('duplicate') || 
+          lowerMsg.includes('unique') || 
+          lowerMsg.includes('already exists') || 
+          lowerMsg.includes('violates unique constraint')
+        ) {
+          msg = 'Este e-mail já está cadastrado.';
+        }
+
+        setErrorMessage(msg);
       }
     } catch (error) {
       console.error('Erro de conexão:', error);
