@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 export default function Register({ onRegisterSuccess }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [normalPassword, setNormalPassword] = useState('');
   const [securityPassword, setSecurityPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -10,6 +11,7 @@ export default function Register({ onRegisterSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return; // Evita duplo clique
     setLoading(true);
     setErrorMessage('');
 
@@ -22,6 +24,7 @@ export default function Register({ onRegisterSuccess }) {
         body: JSON.stringify({
           email,
           name,
+          whatsapp,
           normalPassword,
           securityPassword
         }),
@@ -29,18 +32,15 @@ export default function Register({ onRegisterSuccess }) {
 
       const data = await response.json().catch(() => ({}));
 
-      // Verifica se o cadastro deu certo
+      // Se deu certo no servidor ou retornou sucesso
       if (response.ok || data.success === true || data.sucesso === true) {
+        alert('Cadastro realizado com sucesso! Bem-vindo.');
         if (onRegisterSuccess) {
           onRegisterSuccess(data);
-        } else {
-          alert('Cadastro realizado com sucesso!');
         }
       } else {
-        // Pega a mensagem de erro que veio do servidor
         let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro. Tente novamente.';
         
-        // Converte erros de duplicidade do banco em uma mensagem amigável
         const lowerMsg = msg.toLowerCase();
         if (
           lowerMsg.includes('duplicate') || 
@@ -70,7 +70,7 @@ export default function Register({ onRegisterSuccess }) {
             Criar Conta
           </h2>
           <p className="mt-2 text-center text-sm text-gray-400">
-            Cadastre-se e comece seu período de teste gratuito
+            Cadastre-se e proteja seus dados com segurança
           </p>
         </div>
 
@@ -107,6 +107,18 @@ export default function Register({ onRegisterSuccess }) {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-300">WhatsApp / Número de Emergência</label>
+              <input
+                type="text"
+                required
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                placeholder="(11) 99999-9999"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-300">Senha Normal</label>
               <input
                 type="password"
@@ -125,7 +137,7 @@ export default function Register({ onRegisterSuccess }) {
                 required
                 value={securityPassword}
                 onChange={(e) => setSecurityPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 ps-3 py-2 text-white placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                 placeholder="••••••••"
               />
             </div>
