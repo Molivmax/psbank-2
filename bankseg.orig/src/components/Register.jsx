@@ -29,24 +29,25 @@ export default function Register({ onRegisterSuccess }) {
 
       const data = await response.json().catch(() => ({}));
 
-      // Verifica se a resposta deu certo e se o n8n retornou sucesso: true
-      if (response.ok && (data.success === true || data.sucesso === true)) {
+      // Verifica se o cadastro deu certo
+      if (response.ok || data.success === true || data.sucesso === true) {
         if (onRegisterSuccess) {
           onRegisterSuccess(data);
         } else {
-          alert('Cadastro realizado com sucesso! Bem-vindo ao período de teste.');
+          alert('Cadastro realizado com sucesso!');
         }
       } else {
-        // Pega a mensagem de erro do servidor
+        // Pega a mensagem de erro que veio do servidor
         let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro. Tente novamente.';
         
-        // Verifica se o erro é de e-mail duplicado no banco de dados
+        // Converte erros de duplicidade do banco em uma mensagem amigável
         const lowerMsg = msg.toLowerCase();
         if (
           lowerMsg.includes('duplicate') || 
           lowerMsg.includes('unique') || 
           lowerMsg.includes('already exists') || 
-          lowerMsg.includes('violates unique constraint')
+          lowerMsg.includes('violates unique constraint') ||
+          lowerMsg.includes('já cadastrado')
         ) {
           msg = 'Este e-mail já está cadastrado.';
         }
