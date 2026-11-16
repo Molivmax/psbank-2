@@ -11,7 +11,8 @@ function App() {
   const [userData, setUserData] = useState(null);
   const ultimoDisparoRef = useRef(0);
 
-  const N8N_WEBHOOK_URL = 'https://jh23268419.app.n8n.cloud/webhook/banco-seguro-alerta';
+  // URL corrigida para o webhook de produção do n8n
+  const N8N_WEBHOOK_URL = 'https://jh23268419.app.n8n.cloud/webhook/alerta-coacao';
 
   const solicitarPermissaoGPS = async () => {
     try {
@@ -113,7 +114,6 @@ function App() {
   };
 
   const handleEmergencyActivated = async () => {
-    // Evita disparo duplicado caso Login.jsx e App.jsx chamem ao mesmo tempo
     const agora = Date.now();
     if (agora - ultimoDisparoRef.current < 5000) {
       return;
