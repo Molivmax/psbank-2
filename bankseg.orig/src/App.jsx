@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Geolocation } from '@capacitor/geolocation';
 import Register from './components/Register';
 import Login from './components/Login';
@@ -9,6 +9,7 @@ function App() {
   const [currentView, setCurrentView] = useState('loading');
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [userData, setUserData] = useState(null);
+  const ultimoDisparoRef = useRef(0);
 
   const N8N_WEBHOOK_URL = 'https://jh23268419.app.n8n.cloud/webhook/banco-seguro-alerta';
 
@@ -63,7 +64,6 @@ function App() {
     }
   };
 
-  // Extrai os números limpos (DDD + número, sem o 55, pois o n8n já adiciona "55" na frente)
   const extrairContatosParaN8N = (user) => {
     const lista = [];
     const candidatos = [
@@ -92,7 +92,6 @@ function App() {
       const currentUser = JSON.parse(rawUser);
       const contactos = extrairContatosParaN8N(currentUser);
 
-      // Envia exatamente no formato que o nó MegaAPI do seu n8n espera
       const payload = {
         usuario: currentUser.name || 'Usuário Pasta Segura',
         contactos: contactos,
@@ -105,6 +104,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json'
         },
+        keepalive: true,
         body: JSON.stringify(payload)
       });
     } catch (error) {
@@ -113,6 +113,13 @@ function App() {
   };
 
   const handleEmergencyActivated = async () => {
+    // Evita disparo duplicado caso Login.jsx e App.jsx chamem ao mesmo tempo
+    const agora = Date.now();
+    if (agora - ultimoDisparoRef.current < 5000) {
+      return;
+    }
+    ultimoDisparoRef.current = agora;
+
     const fallbackLink = 'https://maps.google.com/maps?q=-23.55052,-46.633308';
 
     try {
