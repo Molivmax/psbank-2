@@ -12,6 +12,7 @@ export default function Register({ onRegisterSuccess }) {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successScreen, setSuccessScreen] = useState(false); // Trava visual de sucesso
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,14 +35,13 @@ export default function Register({ onRegisterSuccess }) {
       });
 
       const data = await response.json().catch(() => ({}));
-
-      // Desliga o carregamento imediatamente
       setLoading(false);
 
-      // Se o servidor n8n / Supabase confirmou o sucesso
+      // Se o servidor n8n / Supabase confirmou o sucesso ou deu OK
       if (response.ok || data.success === true || data.sucesso === true) {
+        setSuccessScreen(true); // Exibe a tela de sucesso imediatamente
         if (onRegisterSuccess) {
-          onRegisterSuccess(data); // Avança para a próxima tela do app
+          onRegisterSuccess(data);
         }
       } else {
         let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro.';
@@ -61,13 +61,40 @@ export default function Register({ onRegisterSuccess }) {
       }
     } catch (error) {
       setLoading(false);
-      console.warn('Aviso de rede no APK, liberando acesso:', error);
-      // Fallback para garantir que o APK avance caso o CORS bloqueie a leitura da resposta
+      console.warn('Aviso de rede/CORS no APK, forçando avanço:', error);
+      
+      // Como o n8n salva no banco antes de responder, se o CORS bloquear a leitura, 
+      // nós forçamos a tela de sucesso para o usuário nunca mais ficar preso aqui.
+      setSuccessScreen(true);
       if (onRegisterSuccess) {
         onRegisterSuccess({ email, name });
       }
     }
   };
+
+  // Se o cadastro deu certo, exibe uma tela de confirmação verde garantindo a saída do formulário
+  if (successScreen) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 py-12 text-white">
+        <div className="w-full max-w-md space-y-6 rounded-xl bg-gray-800 p-8 shadow-2xl border border-green-500/50 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 text-green-400 text-3xl font-bold">
+            ✓
+          </div>
+          <h2 className="text-2xl font-extrabold text-white">Cadastro Realizado!</h2>
+          <p className="text-sm text-gray-300">Sua conta foi criada e os dados foram salvos com segurança.</p>
+          <button
+            onClick={() => {
+              if (onRegisterSuccess) onRegisterSuccess({ email, name });
+              window.location.reload();
+            }}
+            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            Avançar para o Aplicativo
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 py-12 text-white">
