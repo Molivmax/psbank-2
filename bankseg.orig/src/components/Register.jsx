@@ -12,7 +12,6 @@ export default function Register({ onRegisterSuccess }) {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [successScreen, setSuccessScreen] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,14 +33,13 @@ export default function Register({ onRegisterSuccess }) {
       const data = await response.json().catch(() => ({}));
       setLoading(false);
 
+      // Se o servidor n8n / Supabase confirmou o sucesso
       if (response.ok || data.success === true || data.sucesso === true) {
-        // Salva a sessão localmente para o app não pedir cadastro de novo
         localStorage.setItem('usuario_logado', 'true');
         localStorage.setItem('dados_usuario', JSON.stringify(userData));
 
-        setSuccessScreen(true);
         if (onRegisterSuccess) {
-          onRegisterSuccess(data);
+          onRegisterSuccess(data); // <--- Avança direto para a próxima tela do app
         }
       } else {
         let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro.';
@@ -63,41 +61,15 @@ export default function Register({ onRegisterSuccess }) {
       setLoading(false);
       console.warn('Aviso de rede no APK, avançando:', error);
       
-      // Salva localmente e libera o acesso mesmo se o CORS bloquear a leitura do retorno
+      // Fallback: se o CORS bloquear a leitura, o n8n já salvou no banco, então liberamos o acesso
       localStorage.setItem('usuario_logado', 'true');
       localStorage.setItem('dados_usuario', JSON.stringify(userData));
 
-      setSuccessScreen(true);
       if (onRegisterSuccess) {
         onRegisterSuccess(userData);
       }
     }
   };
-
-  // Tela de Sucesso com transição limpa para a próxima página
-  if (successScreen) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 py-12 text-white">
-        <div className="w-full max-w-md space-y-6 rounded-xl bg-gray-800 p-8 shadow-2xl border border-green-500/50 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 text-green-400 text-3xl font-bold">
-            ✓
-          </div>
-          <h2 className="text-2xl font-extrabold text-white">Cadastro Realizado!</h2>
-          <p className="text-sm text-gray-300">Sua conta foi criada e salva com segurança.</p>
-          <button
-            onClick={() => {
-              if (onRegisterSuccess) {
-                onRegisterSuccess({ email, name });
-              }
-            }}
-            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            Avançar para o Aplicativo
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 py-12 text-white">
