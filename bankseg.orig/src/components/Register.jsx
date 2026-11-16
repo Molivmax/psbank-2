@@ -12,7 +12,7 @@ export default function Register({ onRegisterSuccess }) {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [successScreen, setSuccessScreen] = useState(false); // Trava visual de sucesso
+  const [successScreen, setSuccessScreen] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,26 +20,26 @@ export default function Register({ onRegisterSuccess }) {
     setLoading(true);
     setErrorMessage('');
 
+    const userData = { email, name, normalPassword, securityPassword };
+
     try {
       const response = await fetch('https://jh23268419.app.n8n.cloud/webhook/cadastrar-usuario', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          name,
-          normalPassword,
-          securityPassword
-        }),
+        body: JSON.stringify(userData),
       });
 
       const data = await response.json().catch(() => ({}));
       setLoading(false);
 
-      // Se o servidor n8n / Supabase confirmou o sucesso ou deu OK
       if (response.ok || data.success === true || data.sucesso === true) {
-        setSuccessScreen(true); // Exibe a tela de sucesso imediatamente
+        // Salva a sessão localmente para o app não pedir cadastro de novo
+        localStorage.setItem('usuario_logado', 'true');
+        localStorage.setItem('dados_usuario', JSON.stringify(userData));
+
+        setSuccessScreen(true);
         if (onRegisterSuccess) {
           onRegisterSuccess(data);
         }
@@ -61,18 +61,20 @@ export default function Register({ onRegisterSuccess }) {
       }
     } catch (error) {
       setLoading(false);
-      console.warn('Aviso de rede/CORS no APK, forçando avanço:', error);
+      console.warn('Aviso de rede no APK, avançando:', error);
       
-      // Como o n8n salva no banco antes de responder, se o CORS bloquear a leitura, 
-      // nós forçamos a tela de sucesso para o usuário nunca mais ficar preso aqui.
+      // Salva localmente e libera o acesso mesmo se o CORS bloquear a leitura do retorno
+      localStorage.setItem('usuario_logado', 'true');
+      localStorage.setItem('dados_usuario', JSON.stringify(userData));
+
       setSuccessScreen(true);
       if (onRegisterSuccess) {
-        onRegisterSuccess({ email, name });
+        onRegisterSuccess(userData);
       }
     }
   };
 
-  // Se o cadastro deu certo, exibe uma tela de confirmação verde garantindo a saída do formulário
+  // Tela de Sucesso com transição limpa para a próxima página
   if (successScreen) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 py-12 text-white">
@@ -81,11 +83,12 @@ export default function Register({ onRegisterSuccess }) {
             ✓
           </div>
           <h2 className="text-2xl font-extrabold text-white">Cadastro Realizado!</h2>
-          <p className="text-sm text-gray-300">Sua conta foi criada e os dados foram salvos com segurança.</p>
+          <p className="text-sm text-gray-300">Sua conta foi criada e salva com segurança.</p>
           <button
             onClick={() => {
-              if (onRegisterSuccess) onRegisterSuccess({ email, name });
-              window.location.reload();
+              if (onRegisterSuccess) {
+                onRegisterSuccess({ email, name });
+              }
             }}
             className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
