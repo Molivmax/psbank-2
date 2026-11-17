@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../supabaseClient'; // Ajuste o caminho do import se necessário
 
 export default function Register({ onRegisterSuccess }) {
   const [name, setName] = useState('');
@@ -19,67 +20,44 @@ export default function Register({ onRegisterSuccess }) {
     setLoading(true);
     setErrorMessage('');
 
-    const payload = {
-      email,
-      name,
-      normalPassword,
-      securityPassword
-    };
-
     try {
-      const response = await fetch('https://jh23268419.app.n8n.cloud/webhook/cadastrar-usuario', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      // 1. Verifica se o e-mail já existe na tabela usuarios
+      const { data: existingUser, error: checkError } = await supabase
+        .from('usuarios')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
 
-      const responseText = await response.text();
-      let data = {};
-      try {
-        data = responseText ? JSON.parse(responseText) : {};
-      } catch (err) {
-        data = {};
+      if (existingUser) {
+        setLoading(false);
+        setErrorMessage('Este e-mail já está cadastrado.');
+        return;
       }
 
-      // Desliga o carregamento IMEDIATAMENTE antes de qualquer coisa
-      setLoading(false);
-
-      // Verificação blindada: se o status for OK (200) OU se o banco aceitou
-      const isSuccess = response.ok || response.status === 200 || data.success === true || data.sucesso === true || Object.keys(data).length === 0;
-
-      if (isSuccess) {
-        if (onRegisterSuccess) {
-          onRegisterSuccess({
-            success: true,
-            nextStep: data.nextStep || 'payment',
-            userId: data.userId || email,
+      // 2. Insere o novo usuário diretamente no Supabase
+      const { data, error: insertError } = await supabase
+        .from('usuarios')
+        .insert([
+          {
+            name,
             email,
-            name
-          });
-        }
-      } else {
-        let msg = data.message || data.mensagem || 'Erro ao realizar o cadastro.';
-        const lowerMsg = msg.toLowerCase();
-        
-        if (
-          lowerMsg.includes('duplicate') || 
-          lowerMsg.includes('unique') || 
-          lowerMsg.includes('already exists') || 
-          lowerMsg.includes('já cadastrado') ||
-          response.status === 409
-        ) {
-          setErrorMessage('Este e-mail já está cadastrado.');
-        } else {
-          setErrorMessage(msg);
-        }
+            normalPassword,
+            securityPassword
+          }
+        ])
+        .select();
+
+      if (insertError) {
+        throw insertError;
       }
-    } catch (error) {
+
       setLoading(false);
-      console.warn('Aviso de rede no APK, forçando avanço:', error);
-      
-      // Fallback: como o n8n grava no banco, se houver qualquer bloqueio de rede/CORS, liberamos a entrada
+
+      // Salva sessão localmente para o app lembrar do usuário logado
+      localStorage.setItem('usuario_logado', 'true');
+      localStorage.setItem('dados_usuario', JSON.stringify({ email, name }));
+
+      // 3. Sucesso! Avança para a próxima tela do app
       if (onRegisterSuccess) {
         onRegisterSuccess({
           success: true,
@@ -87,6 +65,16 @@ export default function Register({ onRegisterSuccess }) {
           email,
           name
         });
+      }
+    } catch (error) {
+      setLoading(false);
+      console.error('Erro ao cadastrar no Supabase:', error);
+      
+      // Tratamento para e-mail duplicado ou erro geral
+      if (error.code === '23505' || (error.message && error.message.toLowerCase().includes('duplicate'))) {
+        setErrorMessage('Este e-mail já está cadastrado.');
+      } else {
+        setErrorMessage('Erro ao realizar o cadastro. Tente novamente.');
       }
     }
   };
@@ -184,11 +172,4 @@ export default function Register({ onRegisterSuccess }) {
               disabled={loading}
               className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
             >
-              {loading ? 'Cadastrando...' : 'Entrar no Aplicativo'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+              {loading ? '
