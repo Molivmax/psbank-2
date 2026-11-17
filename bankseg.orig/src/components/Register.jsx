@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient'; // Ajuste o caminho do import se necessário
+import { supabase } from '../supabaseClient';
 
 export default function Register({ onRegisterSuccess }) {
   const [name, setName] = useState('');
@@ -53,7 +53,7 @@ export default function Register({ onRegisterSuccess }) {
 
       setLoading(false);
 
-      // Salva sessão localmente para o app lembrar do usuário logado
+      // Salva sessão localmente
       localStorage.setItem('usuario_logado', 'true');
       localStorage.setItem('dados_usuario', JSON.stringify({ email, name }));
 
@@ -70,7 +70,6 @@ export default function Register({ onRegisterSuccess }) {
       setLoading(false);
       console.error('Erro ao cadastrar no Supabase:', error);
       
-      // Tratamento para e-mail duplicado ou erro geral
       if (error.code === '23505' || (error.message && error.message.toLowerCase().includes('duplicate'))) {
         setErrorMessage('Este e-mail já está cadastrado.');
       } else {
@@ -172,4 +171,11 @@ export default function Register({ onRegisterSuccess }) {
               disabled={loading}
               className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
             >
-              {loading ? '
+              {loading ? 'Cadastrando...' : 'Entrar no Aplicativo'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
